@@ -11,12 +11,6 @@ if [ ! -f memory_ranges.csv ]; then
 	exit 1
 fi
 O_BINARY=/u01/app/oracle/product/12.1.0.2/dbhome_1/bin/oracle
-#F_SGA_S=0x60001000
-#F_SGA_E=0x602cc000
-#V_SGA_S=0x60400000
-#V_SGA_E=0x96400000
-#REDO_S=0x96400000
-#REDO_E=0x9e934000
 # create lookup table for the memory ranges
 sqlite3 cache.db "drop table if exists memory_ranges;"
 sqlite3 cache.db "create table memory_ranges (start_address integer, end_address integer, memory_area varchar(30), description varchar(100));"
@@ -27,17 +21,16 @@ sqlite3 cache.db ".import memory_ranges_pga.csv     memory_ranges"
 sqlite3 cache.db "drop table if exists function_address;"
 sqlite3 cache.db "create table function_address (address integer, function_name varchar(100));"
 #
+
 echo "function:Read/Write:memory address(annotation):size"
 cat $FILE | grep -v ^# | while read IP RW MEM_ADDR SIZE UNKN; do
 	# remove last char(':')
 	IP=${IP::-1}
-	FUNC=$(sqlite3 cache.db "select function_name from function_address where $((IP)) = address;")
-	if [ -z "$FUNC" ]; then
-		sqlite3 cache.db "insert into function_address ( address, function_name ) values ( $((IP)), \"$(addr2line -p -f -e $O_BINARY $IP | awk '{ print $1 }')\");"
-		FUNC=$(sqlite3 cache.db "select function_name from function_address where $((IP)) = address;")
+	# get results
+	SQLITE_RESULTS=($(sqlite3 cache.db "select case when count(1) = 0 then '--' else function_name end from function_address where address = $((IP)) union all select memory_area||'|'||description from memory_ranges where $((MEM_ADDR)) between start_address and end_address-1;"))
+	if [ "${SQLITE_RESULTS[0]}" = "--" ]; then
+		SQLITE_RESULTS[0]=$(addr2line -p -f -e $O_BINARY $IP | awk '{ print $1 }')
+		sqlite3 cache.db "insert into function_address ( address, function_name ) values ( $((IP)), \"${SQLITE_RESULTS[0]}\");"
 	fi
-	MEM_REGION=$(sqlite3 cache.db "select memory_area, description from memory_ranges where $((MEM_ADDR)) between start_address and end_address-1;")
-        # trick to remove newline
-        MEM_REGION=$(echo $MEM_REGION)
-        echo "$FUNC:$RW:$MEM_ADDR($MEM_REGION):$SIZE"
+        echo "${SQLITE_RESULTS[0]}:$RW:$MEM_ADDR(${SQLITE_RESULTS[@]:1}):$SIZE"
 done
