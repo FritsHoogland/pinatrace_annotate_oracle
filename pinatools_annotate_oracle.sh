@@ -12,25 +12,17 @@ if [ ! -f memory_ranges.csv ]; then
 fi
 O_BINARY=/u01/app/oracle/product/12.1.0.2/dbhome_1/bin/oracle
 # create lookup table for the memory ranges
-sqlite3 cache.db "drop table if exists memory_ranges;"
-sqlite3 cache.db "create table memory_ranges (start_address integer, end_address integer, memory_area varchar(30), description varchar(100));"
-sqlite3 cache.db ".import memory_ranges.csv         memory_ranges"
-sqlite3 cache.db ".import memory_ranges_xtables.csv memory_ranges"
-sqlite3 cache.db ".import memory_ranges_pga.csv     memory_ranges"
-# create lookup table for function addresses
-sqlite3 cache.db "drop table if exists function_address;"
-sqlite3 cache.db "create table function_address (address integer, function_name varchar(100));"
+sqlite3 memory_ranges.db "drop table if exists memory_ranges;"
+sqlite3 memory_ranges.db "create table memory_ranges (start_address integer, end_address integer, memory_area varchar(30), description varchar(100));"
+sqlite3 memory_ranges.db ".import memory_ranges.csv         memory_ranges"
+sqlite3 memory_ranges.db ".import memory_ranges_xtables.csv memory_ranges"
+sqlite3 memory_ranges.db ".import memory_ranges_pga.csv     memory_ranges"
 #
-
+declare -a IPCACHE
 echo "function:Read/Write:memory address(annotation):size"
 cat $FILE | grep -v ^# | while read IP RW MEM_ADDR SIZE UNKN; do
 	# remove last char(':')
 	IP=${IP::-1}
-	# get results
-	SQLITE_RESULTS=($(sqlite3 cache.db "select case when count(1) = 0 then '--' else function_name end from function_address where address = $((IP)) union all select memory_area||'|'||description from memory_ranges where $((MEM_ADDR)) between start_address and end_address-1;"))
-	if [ "${SQLITE_RESULTS[0]}" = "--" ]; then
-		SQLITE_RESULTS[0]=$(addr2line -p -f -e $O_BINARY $IP | awk '{ print $1 }')
-		sqlite3 cache.db "insert into function_address ( address, function_name ) values ( $((IP)), \"${SQLITE_RESULTS[0]}\");"
-	fi
-        echo "${SQLITE_RESULTS[0]}:$RW:$MEM_ADDR(${SQLITE_RESULTS[@]:1}):$SIZE"
+	[ -z "${IPCACHE[$((IP))]}" ] && IPCACHE[$((IP))]=$(addr2line -p -f -e $O_BINARY $IP | awk '{ print $1 }')
+        echo "${IPCACHE[$((IP))]}:$RW:$MEM_ADDR($(sqlite3 memory_ranges.db "select memory_area, description from memory_ranges where $((MEM_ADDR)) between start_address and end_address-1;" | tr '\n' ' ')):$SIZE"
 done
