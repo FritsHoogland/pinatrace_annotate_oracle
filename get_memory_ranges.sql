@@ -1,0 +1,4 @@
+@0_get_pga_detail.sql
+@1_generate_memory_ranges.sql
+@2_generate_memory_ranges_xtables.sql
+@3_generate_memory_ranges_pga.sql
