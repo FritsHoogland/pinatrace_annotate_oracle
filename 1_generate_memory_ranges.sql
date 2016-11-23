@@ -2,7 +2,7 @@ set head off pages 0 lines 200 trimout on trimspool on feed off sqlblanklines of
 spool memory_ranges.csv
 --format: start address (int) | end address (int) | memory area (redo,fixed,variable) | description
 --- public redo 
-select to_number(rawtohex(pnext_buf_kcrfa_cln),'xxxxxxxxxxxxxxxx')||'|'||(to_number(rawtohex(pnext_buf_kcrfa_cln),'xxxxxxxxxxxxxxxx')+strand_size_kcrfa)||'|'||'redo'||'|'||'PUB_REDO_'||indx from x$kcrfstrand where pnext_buf_kcrfa_cln != hextoraw(0)
+select to_number(rawtohex(first_buf_kcrfa),'xxxxxxxxxxxxxxxx')||'|'||(to_number(rawtohex(first_buf_kcrfa),'xxxxxxxxxxxxxxxx')+strand_size_kcrfa)||'|'||'redo'||'|'||'PUB_REDO_'||indx from x$kcrfstrand where pnext_buf_kcrfa_cln != hextoraw(0)
 union all
 -- private redo strands
 select to_number(rawtohex(ptr_kcrf_pvt_strand),'xxxxxxxxxxxxxxxx')||'|'||(to_number(rawtohex(ptr_kcrf_pvt_strand),'xxxxxxxxxxxxxxxx')+strand_size_kcrfa)||'|'||'shared pool'||'|'||'PVT_REDO_'||indx from x$kcrfstrand where ptr_kcrf_pvt_strand != hextoraw(0)
